@@ -22,7 +22,14 @@ export function createClient() {
   if (!browserClient) {
     browserClient = createBrowserClient(
       getSupabaseEnv('NEXT_PUBLIC_SUPABASE_URL'),
-      getSupabaseEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY')
+      getSupabaseEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
+      {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: false,
+        },
+      }
     )
   }
   return browserClient
