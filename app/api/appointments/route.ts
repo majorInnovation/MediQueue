@@ -74,6 +74,7 @@ export async function POST(request: Request) {
       notes: reason ?? null,
       status: 'scheduled',
       appointment_number: appointmentNumber,
+      reminder_sent: false,
     })
     .select(`
       id, appointment_date, appointment_time, type, status, reason, appointment_number,

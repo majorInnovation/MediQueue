@@ -43,17 +43,18 @@ export async function GET(request: Request) {
       .from('patients')
       .select(selectColumns)
       .order('created_at', { ascending: false })
-      .limit(50)
 
-    if (!search) return query
+    if (!search) return query.limit(50)
 
-    return query.or(`name.ilike.%${search}%,phone.ilike.%${search}%,phone_number.ilike.%${search}%`)
+    return query
+      .or(`patient_number.ilike.%${search}%,name.ilike.%${search}%,phone.ilike.%${search}%,phone_number.ilike.%${search}%`)
+      .limit(100)
   }
 
-  const { data, error } = await buildQuery('id, name, phone, phone_number, gender, age, created_at')
+  const { data, error } = await buildQuery('id, patient_number, name, phone, phone_number, gender, age, created_at')
 
   if (error) {
-    const fallback = await buildQuery('id, name, phone, phone_number, gender, age, created_at')
+    const fallback = await buildQuery('id, patient_number, name, phone, phone_number, gender, age, created_at')
     if (fallback.error) return NextResponse.json({ error: fallback.error.message }, { status: 500 })
     return NextResponse.json({ patients: (fallback.data ?? []).map(patient => normalizePatientPayload(patient as Record<string, any>)) })
   }

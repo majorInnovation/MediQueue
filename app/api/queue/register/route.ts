@@ -186,6 +186,8 @@ export async function POST(req: NextRequest) {
     const updatePayload = {
       name: fullName,
       phone,
+      phone_number: phone,
+      patient_number: nextPatientNumber,
       gender: body.gender ?? null,
       address: body.address || null,
       updated_at: new Date().toISOString(),

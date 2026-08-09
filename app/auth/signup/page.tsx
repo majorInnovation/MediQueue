@@ -212,7 +212,15 @@ export default function ClinicSignupPage() {
 
   if (verifyEmail) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4 py-10">
+      <div
+        className="min-h-screen flex flex-col items-center justify-center px-4 py-10"
+        style={{
+          backgroundImage: "url('/placeholder.jpg')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+        }}
+      >
         <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-gray-100 px-6 py-10 flex flex-col items-center text-center gap-4">
           <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center">
             <MailCheck className="w-8 h-8 text-blue-700" />
@@ -239,7 +247,15 @@ export default function ClinicSignupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center py-10 px-4">
+    <div
+      className="min-h-screen flex flex-col items-center py-10 px-4"
+      style={{
+        backgroundImage: "url('/placeholder.jpg')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
       <div className="w-full max-w-2xl">
         <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-6 transition-colors">
           <ArrowLeft className="w-4 h-4" /> Back to home

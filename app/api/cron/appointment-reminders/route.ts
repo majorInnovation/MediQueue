@@ -6,7 +6,7 @@ import { createAppointmentReminderSMS, getClinicDisplayName } from '@/lib/sms/te
 // Zambia (Africa/Lusaka) is UTC+2 year-round — no DST. Override via env if a
 // clinic ever operates in a different timezone.
 const CLINIC_UTC_OFFSET_MINUTES = Number(process.env.CLINIC_UTC_OFFSET_MINUTES ?? 120)
-const REMINDER_WINDOW_MINUTES = 60
+const REMINDER_WINDOW_MINUTES = 15
 
 function toUtcDate(date: string, time: string): Date {
   const sign = CLINIC_UTC_OFFSET_MINUTES >= 0 ? '-' : '+'
@@ -16,8 +16,8 @@ function toUtcDate(date: string, time: string): Date {
 }
 
 // Triggered by Vercel Cron (see vercel.json). Finds appointments starting within
-// the next hour that haven't had their reminder SMS sent yet, sends it, and
-// flags them so they're never sent twice.
+// the next 15 minutes that haven't had their reminder SMS sent yet, sends it,
+// and flags them so they're never sent twice.
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET
   if (cronSecret) {
