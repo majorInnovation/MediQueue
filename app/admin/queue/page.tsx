@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { QueueHeader } from '@/components/queue/QueueHeader'
 import { QueueStats } from '@/components/queue/QueueStats'
@@ -39,9 +39,11 @@ export default function QueueManagementPage() {
   const [rows, setRows] = useState<QueueRow[]>([])
   const [staffList, setStaffList] = useState<AttendingStaff[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [deptFilter, setDept] = useState('All')
   const [statusFilter, setStatusFilter] = useState<QueueStatus | 'All'>('All')
+  const fetchRequestId = useRef(0)
   const [page, setPage] = useState(1)
   const [actionLoading, setActLoading] = useState<string | null>(null)
   const [clinicId, setClinicId] = useState<string | null>(null)
@@ -90,12 +92,33 @@ export default function QueueManagementPage() {
   }, [search, deptFilter, statusFilter])
 
   const loadQueue = useCallback(async () => {
-    const res = await fetch('/api/admin/queue')
-    if (!res.ok) return
-    const { queue, staff } = await res.json()
-    setRows(queue ?? [])
-    setStaffList(staff ?? [])
-    setLoading(false)
+    const requestId = ++fetchRequestId.current
+    setLoading(true)
+    setError(null)
+
+    try {
+      console.log('[queue] fetch start', requestId)
+      const res = await fetch('/api/admin/queue', { cache: 'no-store' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.error || `Queue fetch failed ${res.status}`)
+      }
+      const { queue, staff } = await res.json()
+      if (requestId !== fetchRequestId.current) {
+        console.log('[queue] ignored stale response', requestId)
+        return
+      }
+      setRows(queue ?? [])
+      setStaffList(staff ?? [])
+      setError(null)
+      console.log('[queue] fetch success', (queue ?? []).length)
+    } catch (loadError) {
+      if (requestId !== fetchRequestId.current) return
+      console.error('[queue] failed to load queue', loadError)
+      setError(loadError instanceof Error ? loadError.message : 'Unable to load queue records.')
+    } finally {
+      if (requestId === fetchRequestId.current) setLoading(false)
+    }
   }, [])
 
   useEffect(() => {
@@ -202,6 +225,27 @@ export default function QueueManagementPage() {
 
         <div className="flex flex-col gap-4 xl:flex-row">
           <div className="flex-1 space-y-4">
+            {error ? (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p>
+                    {rows.length > 0
+                      ? 'Unable to refresh the queue. Showing previously loaded records.'
+                      : 'Unable to load queue records. Please check your connection.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoading(true)
+                      void loadQueue()
+                    }}
+                    className="self-start rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-sm transition hover:bg-slate-100 sm:self-auto"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <QueueFilters
               search={search}
               onSearchChange={setSearch}

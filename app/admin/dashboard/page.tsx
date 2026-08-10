@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useState, useCallback } from 'react'
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import {
   Users,
   Clock,
@@ -61,6 +61,8 @@ export default function AdminDashboardPage() {
   const [now, setNow] = useState<Date | null>(null)
   const [clinicId, setClinicId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const fetchRequestId = useRef(0)
 
   const [stats, setStats] = useState({
     totalToday: 0, waiting: 0, serving: 0, avgWait: 0,
@@ -124,14 +126,24 @@ export default function AdminDashboardPage() {
   const waitingBreakdown = useMemo(() => priorityCountsToWaiting(stats.byPriority), [stats.byPriority])
 
   const loadAll = useCallback(async () => {
+    const requestId = ++fetchRequestId.current
+    setLoading(true)
+    setError(null)
+
     try {
+      console.log('[dashboard] loadAll start', requestId)
       const [statsRes, queueRes, triageRes, smsRes, activityRes] = await Promise.all([
-        fetch('/api/admin/stats'),
-        fetch('/api/admin/queue'),
-        fetch('/api/triage'),
-        fetch('/api/sms-logs'),
-        fetch('/api/admin/activity'),
+        fetch('/api/admin/stats', { cache: 'no-store' }),
+        fetch('/api/admin/queue', { cache: 'no-store' }),
+        fetch('/api/triage', { cache: 'no-store' }),
+        fetch('/api/sms-logs', { cache: 'no-store' }),
+        fetch('/api/admin/activity', { cache: 'no-store' }),
       ])
+
+      if (requestId !== fetchRequestId.current) {
+        console.log('[dashboard] ignored stale loadAll', requestId)
+        return
+      }
 
       if (statsRes.ok) {
         const d = await statsRes.json()
@@ -195,8 +207,12 @@ export default function AdminDashboardPage() {
         const { activity } = await activityRes.json()
         setActivityEvents((activity ?? []).map((a: any) => ({ id: a.id, user: a.user, action: a.action, timestamp: fmtTime(a.timestamp) })))
       }
+    } catch (loadError) {
+      if (requestId !== fetchRequestId.current) return
+      console.error('[dashboard] failed to load all data', loadError)
+      setError(loadError instanceof Error ? loadError.message : 'Unable to load dashboard data.')
     } finally {
-      setLoading(false)
+      if (requestId === fetchRequestId.current) setLoading(false)
     }
   }, [])
 
@@ -304,6 +320,27 @@ export default function AdminDashboardPage() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 -mt-14 md:-mt-16 lg:-mt-20 pb-6 space-y-4 md:space-y-6">
+        {error ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p>
+                {queueRows.length > 0 || stats.totalToday > 0
+                  ? 'Some dashboard data could not refresh. Showing previously loaded results.'
+                  : 'Unable to load dashboard data. Please check your connection.'}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoading(true)
+                  void loadAll()
+                }}
+                className="self-start rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-sm transition hover:bg-slate-100 sm:self-auto"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         {/* KPI Cards */}
         <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">

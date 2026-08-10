@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS patients (
   user_id           UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   name              TEXT NOT NULL,
   phone             TEXT NOT NULL,
+  patient_number    TEXT,
   email             TEXT,
   date_of_birth     DATE,
   gender            TEXT CHECK (gender IN ('male','female','other')),
@@ -354,23 +355,15 @@ RETURNS TEXT AS $$
 DECLARE
   v_sequence INT;
   v_candidate TEXT;
+  v_year_suffix TEXT := RIGHT(p_year::TEXT, 2);
+  v_sequence_name TEXT := format('patient_number_seq_%s', p_year);
 BEGIN
-  INSERT INTO patient_number_counters (year, current_sequence)
-  VALUES (p_year, 0)
-  ON CONFLICT (year) DO NOTHING;
+  EXECUTE format('CREATE SEQUENCE IF NOT EXISTS %I START 1', v_sequence_name);
 
   LOOP
-    SELECT current_sequence + 1
-    INTO v_sequence
-    FROM patient_number_counters
-    WHERE year = p_year
-    FOR UPDATE;
+    EXECUTE format('SELECT nextval(%L)', v_sequence_name) INTO v_sequence;
 
-    UPDATE patient_number_counters
-    SET current_sequence = v_sequence
-    WHERE year = p_year;
-
-    v_candidate := LPAD(v_sequence::TEXT, 4, '0') || '/' || RIGHT(p_year::TEXT, 2);
+    v_candidate := LPAD(v_sequence::TEXT, 4, '0') || '/' || v_year_suffix;
 
     EXIT WHEN NOT EXISTS (
       SELECT 1
@@ -382,6 +375,8 @@ BEGIN
   RETURN v_candidate;
 END;
 $$ LANGUAGE plpgsql;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_patients_patient_number ON patients(patient_number);
 
 -- updated_at trigger
 CREATE OR REPLACE FUNCTION set_updated_at()

@@ -46,25 +46,15 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
   v_sequence INT;
-  v_year_suffix TEXT;
+  v_year_suffix TEXT := RIGHT(p_year::TEXT, 2);
   v_candidate TEXT;
+  v_sequence_name TEXT := format('patient_number_seq_%s', p_year);
 BEGIN
-  INSERT INTO patient_number_counters (year, current_sequence)
-  VALUES (p_year, 0)
-  ON CONFLICT (year) DO NOTHING;
+  EXECUTE format('CREATE SEQUENCE IF NOT EXISTS %I START 1', v_sequence_name);
 
   LOOP
-    SELECT current_sequence + 1
-    INTO v_sequence
-    FROM patient_number_counters
-    WHERE year = p_year
-    FOR UPDATE;
+    EXECUTE format('SELECT nextval(%L)', v_sequence_name) INTO v_sequence;
 
-    UPDATE patient_number_counters
-    SET current_sequence = v_sequence
-    WHERE year = p_year;
-
-    v_year_suffix := RIGHT(p_year::TEXT, 2);
     v_candidate := LPAD(v_sequence::TEXT, 4, '0') || '/' || v_year_suffix;
 
     EXIT WHEN NOT EXISTS (
@@ -144,6 +134,40 @@ FOR EACH ROW
 EXECUTE FUNCTION set_patient_number();
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_patients_patient_number ON patients(patient_number) WHERE patient_number IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION cleanup_duplicate_patient_numbers()
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  rec RECORD;
+  v_year INT;
+BEGIN
+  FOR rec IN
+    SELECT id, patient_number
+    FROM (
+      SELECT id,
+             patient_number,
+             ROW_NUMBER() OVER (PARTITION BY patient_number ORDER BY created_at NULLS LAST, id) AS row_number
+      FROM patients
+      WHERE patient_number IS NOT NULL
+    ) duplicates
+    WHERE row_number > 1
+  LOOP
+    BEGIN
+      v_year := 2000 + CAST(RIGHT(rec.patient_number, 2) AS INT);
+    EXCEPTION WHEN invalid_text_representation THEN
+      v_year := EXTRACT(YEAR FROM NOW())::INT;
+    END;
+
+    UPDATE patients
+    SET patient_number = get_next_patient_number(v_year)
+    WHERE id = rec.id;
+  END LOOP;
+END;
+$$;
+
+SELECT cleanup_duplicate_patient_numbers();
 
 SELECT migrate_legacy_patient_numbers();
 

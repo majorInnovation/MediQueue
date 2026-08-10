@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Search, UserPlus, Eye, PencilLine, Trash2, Users, Filter, Loader2 } from 'lucide-react'
 import { matchesPatientSearch } from '@/lib/patient-search'
@@ -42,17 +42,31 @@ export default function PatientsPage() {
   const [genderFilter, setGenderFilter] = useState('all')
   const [patients, setPatients] = useState<PatientRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [refreshCount, setRefreshCount] = useState(0)
+  const fetchRequestId = useRef(0)
+
+  const retryLoadPatients = () => setRefreshCount((count) => count + 1)
 
   useEffect(() => {
     const query = search.trim()
     const controller = new AbortController()
+    const requestId = ++fetchRequestId.current
 
     setLoading(true)
+    setError(null)
 
     const timeout = window.setTimeout(() => {
-      fetch(`/api/patients?search=${encodeURIComponent(query)}`, { signal: controller.signal })
-        .then(res => res.json())
+      fetch(`/api/patients?search=${encodeURIComponent(query)}`, { signal: controller.signal, cache: 'no-store' })
+        .then(async res => {
+          if (!res.ok) {
+            const body = await res.json().catch(() => null)
+            throw new Error(body?.error || `Failed to load patients (${res.status})`)
+          }
+          return res.json()
+        })
         .then(data => {
+          if (requestId !== fetchRequestId.current) return
           const normalized = (data.patients ?? []).map((patient: PatientRow) => ({
             ...patient,
             name: patient.name || [patient.first_name, patient.last_name].filter(Boolean).join(' ').trim() || '—',
@@ -60,23 +74,24 @@ export default function PatientsPage() {
             gender: patient.gender ? String(patient.gender).charAt(0).toUpperCase() + String(patient.gender).slice(1) : '—',
             age: typeof patient.age === 'number' ? patient.age : calculateAge(patient.date_of_birth ?? null),
           }))
-          console.log('[patients] loaded', normalized)
           setPatients(normalized)
+          setError(null)
         })
         .catch(error => {
-          if (error.name !== 'AbortError') {
-            console.error('Failed to load patients', error)
-            setPatients([])
-          }
+          if (controller.signal.aborted || requestId !== fetchRequestId.current) return
+          console.error('[patients] failed to load patients', error)
+          setError(error instanceof Error ? error.message : 'Unable to load patients.')
         })
-        .finally(() => setLoading(false))
+        .finally(() => {
+          if (requestId === fetchRequestId.current) setLoading(false)
+        })
     }, 250)
 
     return () => {
       window.clearTimeout(timeout)
       controller.abort()
     }
-  }, [search])
+  }, [search, refreshCount])
 
   const filtered = useMemo(() => {
     return patients.filter(patient => {
@@ -157,6 +172,29 @@ export default function PatientsPage() {
         </div>
 
         <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="p-4">
+            {error ? (
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p>
+                    {patients.length > 0
+                      ? 'Unable to refresh patients. Showing previously loaded results.'
+                      : 'Unable to load patients. Please check your connection and try again.'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoading(true)
+                      retryLoadPatients()
+                    }}
+                    className="self-start rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 shadow-sm transition hover:bg-slate-100 sm:self-auto"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-slate-100 text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">

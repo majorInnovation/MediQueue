@@ -47,9 +47,92 @@ type RegisterBody = {
   sendSms?: boolean
 }
 
+const MAX_PATIENT_NUMBER_RETRIES = 3
+
 function isSchemaError(error: { message?: string } | null | undefined): boolean {
   const message = error?.message ?? ''
   return /column .* does not exist|relation .* does not exist|function .* does not exist|does not exist|could not find/i.test(message)
+}
+
+function isDuplicatePatientNumberError(error: { code?: string; message?: string } | null | undefined): boolean {
+  const message = error?.message ?? ''
+  const code = String(error?.code ?? '')
+  return code === '23505'
+    || /duplicate key value violates unique constraint/i.test(message)
+    || /unique constraint/i.test(message)
+    || /duplicate.*patient_number/i.test(message)
+}
+
+async function createPatientWithUniquePatientNumber(supabase: any, patientPayload: any) {
+  for (let attempt = 1; attempt <= MAX_PATIENT_NUMBER_RETRIES; attempt += 1) {
+    const { data, error } = await supabase
+      .from('patients')
+      .insert(patientPayload)
+      .select('id, patient_number')
+      .single()
+
+    if (!error && data && data.patient_number) {
+      return { patientId: data.id, patientNumber: data.patient_number }
+    }
+
+    if (!error && data && !data.patient_number) {
+      throw new Error('Patient record created without a generated patient number. Confirm the database trigger is installed.')
+    }
+
+    if (isDuplicatePatientNumberError(error)) {
+      continue
+    }
+
+    if (isSchemaError(error)) {
+      throw error
+    }
+
+    throw error
+  }
+
+  throw new Error('Unable to generate a unique patient number after multiple attempts. Please try again.')
+}
+
+async function assignPatientNumberToExistingPatient(
+  supabase: any,
+  patientId: string,
+  currentPatientNumber: string | null,
+  updatePayload: any
+) {
+  if (currentPatientNumber) {
+    const { data, error } = await supabase
+      .from('patients')
+      .update(updatePayload)
+      .eq('id', patientId)
+      .select('id')
+      .single()
+
+    if (error) throw error
+    if (!data) throw new Error('Failed to update existing patient record.')
+    return { patientId, patientNumber: currentPatientNumber }
+  }
+
+  for (let attempt = 1; attempt <= MAX_PATIENT_NUMBER_RETRIES; attempt += 1) {
+    const nextPatientNumber = await getNextPatientNumber(supabase, new Date().getFullYear())
+    const { data, error } = await supabase
+      .from('patients')
+      .update({ ...updatePayload, patient_number: nextPatientNumber })
+      .eq('id', patientId)
+      .select('id')
+      .single()
+
+    if (!error && data) {
+      return { patientId, patientNumber: nextPatientNumber }
+    }
+
+    if (isDuplicatePatientNumberError(error)) {
+      continue
+    }
+
+    throw error
+  }
+
+  throw new Error('Unable to generate a unique patient number after multiple attempts. Please try again.')
 }
 
 async function getNextQueueNumber(supabase: any, clinicId: string, department: string) {
@@ -182,45 +265,29 @@ export async function POST(req: NextRequest) {
   }
 
   if (patientId) {
-    const nextPatientNumber = patientNumber || await getNextPatientNumber(supabase, new Date().getFullYear())
     const updatePayload = {
       name: fullName,
       phone,
       phone_number: phone,
-      patient_number: nextPatientNumber,
       gender: body.gender ?? null,
       address: body.address || null,
       updated_at: new Date().toISOString(),
     }
-    const { data: updatedPatient, error: updateErr } = await supabase.from('patients').update(updatePayload).eq('id', patientId).select('id').single()
-    if (updateErr && !isSchemaError(updateErr)) {
-      return NextResponse.json({ error: updateErr?.message ?? 'Failed to update patient' }, { status: 500 })
-    }
-    if (!updatedPatient && updateErr) {
-      const fallbackPayload = {
-        name: fullName,
-        phone,
-        updated_at: new Date().toISOString(),
-      }
-      const { data: fallbackPatient, error: fallbackErr } = await supabase.from('patients').update(fallbackPayload).eq('id', patientId).select('id').single()
-      if (fallbackErr) {
-        return NextResponse.json({ error: fallbackErr?.message ?? 'Failed to update patient' }, { status: 500 })
-      }
-      if (fallbackPatient) {
-        patientNumber = nextPatientNumber
-      }
-    } else {
-      patientNumber = nextPatientNumber
+
+    try {
+      const result = await assignPatientNumberToExistingPatient(supabase, patientId, patientNumber, updatePayload)
+      patientId = result.patientId
+      patientNumber = result.patientNumber
+    } catch (patientErr: any) {
+      return NextResponse.json({ error: patientErr?.message ?? 'Failed to update patient' }, { status: 500 })
     }
   } else {
-    const nextPatientNumber = await getNextPatientNumber(supabase, new Date().getFullYear())
     const patientPayload = {
       first_name: firstName || null,
       last_name: lastName || null,
       name: fullName,
       phone_number: phone,
       phone,
-      patient_number: nextPatientNumber,
       age: age ?? null,
       gender: body.gender ?? null,
       address: body.address || null,
@@ -231,25 +298,13 @@ export async function POST(req: NextRequest) {
       updated_at: new Date().toISOString(),
       last_visit_at: new Date().toISOString(),
     }
-    const { data: newPatient, error: patientErr } = await supabase.from('patients').insert(patientPayload).select('id').single()
-    if (patientErr && isSchemaError(patientErr)) {
-      const fallbackPayload = {
-        name: fullName,
-        phone,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
-      const { data: fallbackPatient, error: fallbackPatientErr } = await supabase.from('patients').insert(fallbackPayload).select('id').single()
-      if (fallbackPatientErr || !fallbackPatient) {
-        return NextResponse.json({ error: fallbackPatientErr?.message ?? 'Failed to create patient' }, { status: 500 })
-      }
-      patientId = fallbackPatient.id
-      patientNumber = nextPatientNumber
-    } else if (patientErr || !newPatient) {
+
+    try {
+      const result = await createPatientWithUniquePatientNumber(supabase, patientPayload)
+      patientId = result.patientId
+      patientNumber = result.patientNumber
+    } catch (patientErr: any) {
       return NextResponse.json({ error: patientErr?.message ?? 'Failed to create patient' }, { status: 500 })
-    } else {
-      patientId = newPatient.id
-      patientNumber = nextPatientNumber
     }
   }
 

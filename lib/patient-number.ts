@@ -23,16 +23,9 @@ export async function getNextPatientNumber(supabase: any, year: number = new Dat
   const { data, error } = await supabase.rpc('get_next_patient_number', { p_year: year })
   if (!error && typeof data === 'string' && data) return data
 
-  if (error && !isSchemaError(error)) {
-    console.warn('[patient-number] RPC failed, falling back to legacy scan', error.message)
+  if (error && isSchemaError(error)) {
+    throw new Error('Patient number generator is unavailable. Confirm the database migration and stored function are deployed.')
   }
 
-  const { count, error: queryError } = await supabase
-    .from('patients')
-    .select('id', { count: 'exact', head: true })
-
-  if (queryError && !isSchemaError(queryError)) throw queryError
-
-  const nextSequence = (typeof count === 'number' ? count : 0) + 1
-  return buildPatientNumber(nextSequence, year)
+  throw new Error(error?.message ?? 'Failed to generate a unique patient number.')
 }
