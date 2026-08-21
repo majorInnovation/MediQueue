@@ -426,7 +426,7 @@ export default function RegisterPatientPage() {
               </Field>
               <Field label="Phone Number *">
                 <input value={form.phone} onChange={e => update({ phone: e.target.value })}
-                  type="tel" placeholder="0976543210" className={inputCls} />
+                  type="tel" placeholder="097000000" className={inputCls} />
               </Field>
               <Field label="Age">
                 <input value={form.age} onChange={e => update({ age: e.target.value })}
@@ -444,7 +444,7 @@ export default function RegisterPatientPage() {
                 <input value={form.nationalId} onChange={e => update({ nationalId: formatNrcInput(e.target.value) })}
                   placeholder="652260/67/1" className={inputCls} />
                 {form.nationalId && !validateNrc(form.nationalId) ? (
-                  <p className="mt-1 text-xs text-red-600">National ID must be in the format 652260/67/1</p>
+                  <p className="mt-1 text-xs text-red-600">National ID must be in the format 620000/67/1</p>
                 ) : null}
               </Field>
               <div className="sm:col-span-2">
