@@ -464,56 +464,7 @@ export default function RegisterPatientPage() {
             </div>
           </Section>
 
-          <Section icon={Building2} title="Visit Information">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label="Department">
-                <select value={form.department} onChange={e => update({ department: e.target.value })} className={inputCls}>
-                  {departments.length === 0 && <option value="">No departments configured</option>}
-                  {departments.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </Field>
-              <Field label="Visit Type">
-                <select value={form.visitType} onChange={e => update({ visitType: e.target.value })} className={inputCls}>
-                  {visitTypes.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
-                </select>
-              </Field>
-              <Field label="Assigned Staff">
-                <select value={form.assignedStaff} onChange={e => update({ assignedStaff: e.target.value })} className={inputCls}>
-                  <option value="">Unassigned</option>
-                  {staffMembers.length === 0 ? (
-                    <option value="" disabled>No active staff available</option>
-                  ) : staffMembers.map(staff => (
-                    <option key={staff.id} value={staff.id}>{`${staff.name} (${staff.role.charAt(0).toUpperCase()}${staff.role.slice(1)})`}</option>
-                  ))}
-                </select>
-              </Field>
-              <div className="sm:col-span-2">
-                <Field label="Chief Complaint">
-                  <textarea value={form.chiefComplaint} onChange={e => update({ chiefComplaint: e.target.value, reason: e.target.value })}
-                    rows={2} placeholder="Brief description of why the patient is here..."
-                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-blue-500/40 resize-none" />
-                </Field>
-              </div>
-              <Field label="Symptom Duration">
-                <input value={form.symptomDuration} onChange={e => update({ symptomDuration: e.target.value })}
-                  placeholder="2 days" className={inputCls} />
-              </Field>
-              <Field label="Additional Notes">
-                <input value={form.additionalNotes} onChange={e => update({ additionalNotes: e.target.value })}
-                  placeholder="Any extra context" className={inputCls} />
-              </Field>
-            </div>
-          </Section>
-
           <Section icon={Stethoscope} title="Smart Triage">
-            {/* Emergency Status */}
-            <label className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${form.isEmergency ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-100'}`}>
-              <input type="checkbox" checked={form.isEmergency} onChange={e => update({ isEmergency: e.target.checked })}
-                className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500" />
-              <Siren className={`w-4 h-4 ${form.isEmergency ? 'text-red-600' : 'text-gray-400'}`} />
-              <span className={`text-sm font-semibold ${form.isEmergency ? 'text-red-800' : 'text-gray-700'}`}>Mark as Emergency / Critical Case</span>
-            </label>
-
             {/* Symptoms */}
             <div>
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2 block">Symptoms</label>
@@ -592,6 +543,55 @@ export default function RegisterPatientPage() {
                 <input value={form.vitals.oxygenSaturation} onChange={e => update({ vitals: { ...form.vitals, oxygenSaturation: e.target.value } })}
                   type="number" placeholder="SpO2 (%)" className={inputCls} />
               </div>
+            </div>
+
+            {/* Emergency Status */}
+            <label className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${form.isEmergency ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-100'}`}>
+              <input type="checkbox" checked={form.isEmergency} onChange={e => update({ isEmergency: e.target.checked })}
+                className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500" />
+              <Siren className={`w-4 h-4 ${form.isEmergency ? 'text-red-600' : 'text-gray-400'}`} />
+              <span className={`text-sm font-semibold ${form.isEmergency ? 'text-red-800' : 'text-gray-700'}`}>Mark as Emergency / Critical Case</span>
+            </label>
+          </Section>
+
+          <Section icon={Building2} title="Visit Information">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field label="Department">
+                <select value={form.department} onChange={e => update({ department: e.target.value })} className={inputCls}>
+                  {departments.length === 0 && <option value="">No departments configured</option>}
+                  {departments.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </Field>
+              <Field label="Visit Type">
+                <select value={form.visitType} onChange={e => update({ visitType: e.target.value })} className={inputCls}>
+                  {visitTypes.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
+                </select>
+              </Field>
+              <Field label="Assigned Staff">
+                <select value={form.assignedStaff} onChange={e => update({ assignedStaff: e.target.value })} className={inputCls}>
+                  <option value="">Unassigned</option>
+                  {staffMembers.length === 0 ? (
+                    <option value="" disabled>No active staff available</option>
+                  ) : staffMembers.map(staff => (
+                    <option key={staff.id} value={staff.id}>{`${staff.name} (${staff.role.charAt(0).toUpperCase()}${staff.role.slice(1)})`}</option>
+                  ))}
+                </select>
+              </Field>
+              <div className="sm:col-span-2">
+                <Field label="Chief Complaint">
+                  <textarea value={form.chiefComplaint} onChange={e => update({ chiefComplaint: e.target.value, reason: e.target.value })}
+                    rows={2} placeholder="Brief description of why the patient is here..."
+                    className="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-blue-500/40 resize-none" />
+                </Field>
+              </div>
+              <Field label="Symptom Duration">
+                <input value={form.symptomDuration} onChange={e => update({ symptomDuration: e.target.value })}
+                  placeholder="2 days" className={inputCls} />
+              </Field>
+              <Field label="Additional Notes">
+                <input value={form.additionalNotes} onChange={e => update({ additionalNotes: e.target.value })}
+                  placeholder="Any extra context" className={inputCls} />
+              </Field>
             </div>
           </Section>
         </div>
